@@ -1,8 +1,13 @@
 package signaling
 
 import (
-	"fmt"
+	"errors"
 	"sync"
+)
+
+var (
+	ErrRoomNotFound = errors.New("room is not created")
+	ErrRoomFilled   = errors.New("room is filled")
 )
 
 type Hub struct {
@@ -33,11 +38,13 @@ func (h *Hub) JoinRoom(code string, peerB *Peer) (*Room, error) {
 	defer h.rwm.Unlock()
 	room = h.rooms[code]
 	if room == nil {
-		return nil, fmt.Errorf("room is not created")
+		return nil, ErrRoomNotFound
 	}
 	if room.PeerB != nil {
-		return nil, fmt.Errorf("room is filled")
+		return nil, ErrRoomFilled
 	}
+	room.mw.Lock()
 	room.PeerB = peerB
+	room.mw.Unlock()
 	return room, nil
 }

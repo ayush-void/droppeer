@@ -1,11 +1,19 @@
 package signaling
 
-import "fmt"
+import (
+	"errors"
+	"sync"
+)
 
 type Message struct {
 	Type    string `json:"type"`
 	Payload string `json:"payload"`
 }
+
+var (
+	ErrReceiverNotPresent = errors.New("the receiver is not logged in")
+	ErrWrongPeer          = errors.New("wrong peer is present in the room")
+)
 
 type Peer struct {
 	ID   string
@@ -14,24 +22,27 @@ type Peer struct {
 
 type Room struct {
 	Code  string
+	mw    sync.RWMutex
 	PeerA *Peer
 	PeerB *Peer
 }
 
 func (r *Room) Relay(from *Peer, msg Message) error {
+	r.mw.RLock()
+	defer r.mw.RUnlock()
 	switch from {
 	case r.PeerA:
 		if r.PeerB == nil {
-			return fmt.Errorf("the receiver is not logged in")
+			return ErrReceiverNotPresent
 		}
 		r.PeerB.Send <- msg
 	case r.PeerB:
 		if r.PeerA == nil {
-			return fmt.Errorf("the receiver is not logged in")
+			return ErrReceiverNotPresent
 		}
 		r.PeerA.Send <- msg
 	default:
-		return fmt.Errorf("wrong peer is present in the room")
+		return ErrWrongPeer
 	}
 	return nil
 }
