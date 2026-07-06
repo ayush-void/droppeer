@@ -1,12 +1,16 @@
 package signaling
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ayush-void/droppeer/internal/types"
+)
 
 func TestCreateRoom(t *testing.T) {
 	hub := NewHub()
 	peerA := &Peer{
 		ID:   "Aysuh",
-		Send: make(chan Message, 256),
+		Send: make(chan types.Message, 256),
 	}
 	room := hub.CreateRoom("04040", peerA)
 	if room == nil {
@@ -35,11 +39,11 @@ func TestJoinRoom(t *testing.T) {
 	hub := NewHub()
 	peerA := &Peer{
 		ID:   "Aysuh",
-		Send: make(chan Message, 256),
+		Send: make(chan types.Message, 256),
 	}
 	peerB := &Peer{
 		ID:   "Omkar",
-		Send: make(chan Message, 256),
+		Send: make(chan types.Message, 256),
 	}
 	room := hub.CreateRoom("04040", peerA)
 	room, err := hub.JoinRoom("04040", peerB)
@@ -66,7 +70,7 @@ func TestJoinRoom(t *testing.T) {
 }
 
 func TestRelay(t *testing.T) {
-	msg := Message{
+	msg := types.Message{
 		Type:    "Test",
 		Payload: "ppogeligsnls",
 	}
@@ -76,7 +80,7 @@ func TestRelay(t *testing.T) {
 
 	peerA := &Peer{
 		ID:   "Aysuh",
-		Send: make(chan Message, 256),
+		Send: make(chan types.Message, 256),
 	}
 	if err := Troom.Relay(peerA, msg); err == nil {
 		t.Errorf("msg was passed from nil")
@@ -88,7 +92,7 @@ func TestRelay(t *testing.T) {
 	}
 	peerB := &Peer{
 		ID:   "Omkar",
-		Send: make(chan Message, 256),
+		Send: make(chan types.Message, 256),
 	}
 
 	Troom.PeerB = peerB

@@ -3,12 +3,9 @@ package signaling
 import (
 	"errors"
 	"sync"
-)
 
-type Message struct {
-	Type    string `json:"type"`
-	Payload string `json:"payload"`
-}
+	"github.com/ayush-void/droppeer/internal/types"
+)
 
 var (
 	ErrReceiverNotPresent = errors.New("the receiver is not logged in")
@@ -17,7 +14,7 @@ var (
 
 type Peer struct {
 	ID   string
-	Send chan Message
+	Send chan types.Message
 }
 
 type Room struct {
@@ -27,7 +24,7 @@ type Room struct {
 	PeerB *Peer
 }
 
-func (r *Room) Relay(from *Peer, msg Message) error {
+func (r *Room) Relay(from *Peer, msg types.Message) error {
 	r.mw.RLock()
 	defer r.mw.RUnlock()
 	switch from {

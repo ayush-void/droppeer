@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/ayush-void/droppeer/internal/types"
 	"github.com/gorilla/websocket"
 )
 
@@ -54,7 +55,7 @@ func (s *Server) handleWs(w http.ResponseWriter, r *http.Request) {
 	}
 	peer := &Peer{
 		ID:   id,
-		Send: make(chan Message, 1024),
+		Send: make(chan types.Message, 1024),
 	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -62,7 +63,7 @@ func (s *Server) handleWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-	msg := Message{}
+	msg := types.Message{}
 	var room *Room
 	for {
 		_, p, err := conn.ReadMessage()
@@ -101,7 +102,7 @@ func (s *Server) handleWs(w http.ResponseWriter, r *http.Request) {
 				conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","payload":"write unsuccessful"}`))
 				return
 			}
-			room.PeerA.Send <- Message{Type: "peer-joined", Payload: ""}
+			room.PeerA.Send <- types.Message{Type: "peer-joined", Payload: ""}
 			break
 		} else if msg.Type == "create-room" {
 			code, err := generateCode()
@@ -132,7 +133,7 @@ func (s *Server) handleWs(w http.ResponseWriter, r *http.Request) {
 	readerLoop(conn, room, peer)
 }
 
-func writerLoop(conn *websocket.Conn, send chan Message) {
+func writerLoop(conn *websocket.Conn, send chan types.Message) {
 	var err error
 	var p []byte
 	for msg := range send {
@@ -150,7 +151,7 @@ func writerLoop(conn *websocket.Conn, send chan Message) {
 
 func readerLoop(conn *websocket.Conn, room *Room, peer *Peer) {
 	defer close(peer.Send)
-	var msg Message
+	var msg types.Message
 	for {
 		_, p, err := conn.ReadMessage()
 		if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
