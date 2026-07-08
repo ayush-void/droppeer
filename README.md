@@ -42,18 +42,23 @@ go build -o droppeer ./cmd/droppeer
 ./droppeer receive --code=AB3X9F
 # File saved as received_photo.jpg
 ```
-
 ## Architecture
-Sender                 Signaling Server          Receiver
-|                          |                      |
-|----create-room---------->|                      |
-|<---room-created (code)---|                      |
-|                          |<----join-room--------|
-|<---peer-joined-----------|-----peer-joined----->|
-|                          |                      |
-|<======= WebRTC DataChannel (direct P2P) =======>|
-|            signaling server steps out           |
-| Component | Location | Responsibility |
+
+```mermaid
+sequenceDiagram
+    participant S as Sender
+    participant SIG as Signaling Server
+    participant R as Receiver
+
+    S->>SIG: create-room
+    SIG->>S: room-created (code)
+    R->>SIG: join-room (code)
+    SIG->>S: peer-joined
+    SIG->>R: peer-joined
+    Note over S,R: WebRTC negotiation via signaling server
+    S-->>R: Direct P2P DataChannel (DTLS encrypted)
+    Note over SIG: Signaling server steps out
+```
 |---|---|---|
 | Signaling server | `internal/signaling/` | Room management, SDP/ICE relay |
 | Sender | `internal/transfer/sender.go` | File chunking, DataChannel creation |
