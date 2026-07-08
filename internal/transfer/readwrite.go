@@ -3,6 +3,7 @@ package transfer
 import (
 	"encoding/json"
 	"log/slog"
+	"strings"
 
 	"github.com/ayush-void/droppeer/internal/types"
 	"github.com/gorilla/websocket"
@@ -27,6 +28,12 @@ func readMsg(conn *websocket.Conn, pc *webrtc.PeerConnection, msgReader chan typ
 	for {
 		_, p, err := conn.ReadMessage()
 		if err != nil {
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				return // clean close
+			}
+			if strings.Contains(err.Error(), "use of closed network connection") {
+				return
+			}
 			slog.Error("failed to read message", "error", err)
 			return
 		}
@@ -45,7 +52,7 @@ func readMsg(conn *websocket.Conn, pc *webrtc.PeerConnection, msgReader chan typ
 				continue
 			}
 			if err := pc.AddICECandidate(payloadICECand); err != nil {
-				slog.Error("failed to unmarshal Message", "error", err)
+				slog.Error("failed to add ICE candidate", "error", err)
 				continue
 			}
 		default:

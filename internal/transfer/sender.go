@@ -99,9 +99,6 @@ func Sender(filePath string, signalingURL string) error {
 	if err := json.Unmarshal([]byte(answerMsg.Payload), &answer); err != nil {
 		return err
 	}
-	if err := pc.SetRemoteDescription(answer); err != nil {
-		return err
-	}
 	doneCh := make(chan struct{})
 	dc.OnOpen(func() {
 		defer close(doneCh)
@@ -139,6 +136,9 @@ func Sender(filePath string, signalingURL string) error {
 			}
 		}
 	})
+	if err := pc.SetRemoteDescription(answer); err != nil {
+		return err
+	}
 	<-doneCh
 	return nil
 }
