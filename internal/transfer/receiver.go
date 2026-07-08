@@ -1,6 +1,8 @@
 package transfer
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -44,9 +46,9 @@ func Receiver(code string, signalingURL string) error {
 	}
 	defer pc.Close()
 	msgWriter := make(chan types.Message, 16)
-	msgReader := make(chan types.Message, 1)
+	msgReader := make(chan types.Message, 2)
 	go writeMsg(conn, msgWriter)
-	go readMsg(conn, pc, msgReader)
+	go readMsg(conn, pc, msgReader, "offer")
 	pc.OnICECandidate(func(cand *webrtc.ICECandidate) {
 		if cand == nil {
 			return
@@ -58,41 +60,47 @@ func Receiver(code string, signalingURL string) error {
 		}
 		msgWriter <- types.Message{Type: "ice-candidate", Payload: string(payloadICECand)}
 	})
-
+	f := false
+	h := sha256.New()
 	doneCh := make(chan struct{})
+	var fileMetaData *types.Metadata
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
-		if dc == nil {
-			return
-		}
 		dc.OnOpen(func() {
 			fmt.Println("DataChannel Open waiting for file...")
 		})
-		var fileMetaData *types.Metadata
 		var file *os.File
-		var byteReceived int64 = 0
+		var byteReceived int64
 		var byteToBeReceived int64
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			if fileMetaData == nil {
 				fileMetaData = &types.Metadata{}
-				if err = json.Unmarshal(msg.Data, fileMetaData); err != nil {
+				if err := json.Unmarshal(msg.Data, fileMetaData); err != nil {
 					slog.Error("error while unmarshal", "error", err)
 					return
 				}
-				file, err = os.Create(fileMetaData.Filename)
-				if err != nil {
-					slog.Error("error while creating file", "error", err)
+				if fileMetaData.Filesize == 0 {
+					slog.Error("File Size = 0", "error", fmt.Errorf("File is empty"))
+					return
+				}
+				var ferr error
+				fileMetaData.Filename = "received_" + fileMetaData.Filename
+				file, ferr = os.Create(fileMetaData.Filename)
+				if ferr != nil {
+					slog.Error("error while creating file", "error", ferr)
 					return
 				}
 				byteToBeReceived = fileMetaData.Filesize
 				return
 			}
+			h.Write(msg.Data)
 			byteWritten, err := file.Write(msg.Data)
 			if err != nil {
 				slog.Error("error while writing chunk", "error", err)
 			}
 			byteReceived += int64(byteWritten)
 			if byteReceived == byteToBeReceived {
-				fmt.Println("File Transfer Complete")
+				f = true
+				file.Close()
 				close(doneCh)
 				return
 			}
@@ -120,5 +128,20 @@ func Receiver(code string, signalingURL string) error {
 	}
 	msgWriter <- types.Message{Type: "answer", Payload: string(answerMsg)}
 	<-doneCh
+	if !f {
+		return nil
+	}
+	checksumReceiver := hex.EncodeToString(h.Sum(nil))
+	checksumMsg := <-msgReader
+	if checksumMsg.Type == "checksum" {
+		if checksumMsg.Payload == checksumReceiver {
+			fmt.Println("File Transfer Complete")
+		} else {
+			fmt.Println("File Corrupted while transfering")
+			os.Remove(fileMetaData.Filename)
+		}
+	} else {
+		return fmt.Errorf("wrong message read instead of checksum")
+	}
 	return nil
 }

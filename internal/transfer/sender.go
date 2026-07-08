@@ -1,6 +1,8 @@
 package transfer
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -59,9 +61,9 @@ func Sender(filePath string, signalingURL string) error {
 	}
 	defer pc.Close()
 	msgWriter := make(chan types.Message, 16)
-	msgReader := make(chan types.Message, 1)
+	msgReader := make(chan types.Message, 2)
 	go writeMsg(conn, msgWriter)
-	go readMsg(conn, pc, msgReader)
+	go readMsg(conn, pc, msgReader, "answer")
 	pc.OnICECandidate(func(cand *webrtc.ICECandidate) {
 		if cand == nil {
 			return
@@ -100,6 +102,8 @@ func Sender(filePath string, signalingURL string) error {
 		return err
 	}
 	doneCh := make(chan struct{})
+	h := sha256.New()
+	var checksum string
 	dc.OnOpen(func() {
 		defer close(doneCh)
 		fileMetaData := types.Metadata{
@@ -115,6 +119,10 @@ func Sender(filePath string, signalingURL string) error {
 			slog.Error("error while sending metadata", "error", err)
 			return
 		}
+		if fileMetaData.Filesize == 0 {
+			slog.Error("File Size = 0", "error", fmt.Errorf("File is empty"))
+			return
+		}
 		file, err := os.Open(filePath)
 		if err != nil {
 			slog.Error("error while opening file", "error", err)
@@ -125,11 +133,13 @@ func Sender(filePath string, signalingURL string) error {
 		for {
 			n, err := file.Read(buffer)
 			if err == io.EOF {
+				checksum = hex.EncodeToString(h.Sum(nil))
 				return
 			} else if err != nil {
 				slog.Error("error while reading file", "error", err)
 				return
 			}
+			h.Write(buffer[:n])
 			if err := dc.Send(buffer[:n]); err != nil {
 				slog.Error("error while sending metadata", "error", err)
 				return
@@ -140,5 +150,8 @@ func Sender(filePath string, signalingURL string) error {
 		return err
 	}
 	<-doneCh
+	if checksum != "" {
+		msgWriter <- types.Message{Type: "checksum", Payload: checksum}
+	}
 	return nil
 }

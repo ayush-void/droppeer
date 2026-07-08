@@ -24,7 +24,7 @@ func writeMsg(conn *websocket.Conn, msgWriter chan types.Message) {
 	}
 }
 
-func readMsg(conn *websocket.Conn, pc *webrtc.PeerConnection, msgReader chan types.Message) {
+func readMsg(conn *websocket.Conn, pc *webrtc.PeerConnection, msgReader chan types.Message, expectedType string) {
 	for {
 		_, p, err := conn.ReadMessage()
 		if err != nil {
@@ -43,7 +43,7 @@ func readMsg(conn *websocket.Conn, pc *webrtc.PeerConnection, msgReader chan typ
 			continue
 		}
 		switch msg.Type {
-		case "answer", "offer":
+		case expectedType, "checksum":
 			msgReader <- msg
 		case "ice-candidate":
 			payloadICECand := webrtc.ICECandidateInit{}
